@@ -9,7 +9,8 @@ from pydantic import BaseModel
 from typing import Optional
 import uvicorn
 
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
+
 
 # Definir el modelo de datos para la entrada
 class ExoplanetFeatures(BaseModel):
@@ -17,6 +18,7 @@ class ExoplanetFeatures(BaseModel):
     period: float  # Orbital Period (in days)
     teq: float  # Equilibrium Temperature (in Kelvin)
     depth: float  # Transit Depth (light blocked, e.g., 0.001)
+
 
 # Definir el modelo de respuesta
 class PredictionResult(BaseModel):
@@ -26,8 +28,9 @@ class PredictionResult(BaseModel):
     recommendation: str
     is_exoplanet: bool
 
+
 class ExoplanetPredictor:
-    def __init__(self, model_path='exoplanet_model.pkl'):
+    def __init__(self, model_path="exoplanet_model.pkl"):
         """
         Loads the model and scaler when the object is initialized.
         """
@@ -36,8 +39,8 @@ class ExoplanetPredictor:
         self.is_ready = False
         try:
             data = joblib.load(model_path)
-            self.model = data['model']
-            self.scaler = data['scaler']
+            self.model = data["model"]
+            self.scaler = data["scaler"]
             self.is_ready = True
             print(f"✅ Model successfully loaded from '{model_path}'")
         except FileNotFoundError:
@@ -51,23 +54,27 @@ class ExoplanetPredictor:
         Makes a prediction for a single candidate.
         """
         if not self.is_ready:
-            raise HTTPException(status_code=500, detail="Model is not ready for predictions.")
-            
+            raise HTTPException(
+                status_code=500, detail="Model is not ready for predictions."
+            )
+
         try:
             # Prepare the data for the model
-            new_X = np.array([[features.prad, features.period, features.teq, features.depth]])
+            new_X = np.array(
+                [[features.prad, features.period, features.teq, features.depth]]
+            )
             print(f"🔍 Datos para el modelo: {new_X}")
-            
+
             new_X_scaled = self.scaler.transform(new_X)
             print(f"🔍 Datos escalados: {new_X_scaled}")
-            
+
             # Make predictions
             probability = self.model.predict_proba(new_X_scaled)[0]
             confirmed_prob = probability[1]
-            
+
             print(f"🔍 Probabilidades crudas: {probability}")
             print(f"🔍 Probabilidad de exoplaneta: {confirmed_prob}")
-            
+
             # Determine classification and confidence
             if confirmed_prob >= 0.8:
                 confidence = "HIGH"
@@ -89,34 +96,37 @@ class ExoplanetPredictor:
                 classification = "LIKELY A FALSE POSITIVE"
                 recommendation = "Deprioritize or review input data."
                 is_exoplanet = False
-            
+
             result = PredictionResult(
                 probability=confirmed_prob,
                 confidence=confidence,
                 classification=classification,
                 recommendation=recommendation,
-                is_exoplanet=is_exoplanet
+                is_exoplanet=is_exoplanet,
             )
-            
+
             print(f"✅ Predicción exitosa: {result}")
             return result
-            
+
         except Exception as e:
             print(f"❌ Error en predicción: {str(e)}")
             print(f"🔍 Tipo de error: {type(e).__name__}")
             import traceback
+
             print(f"🔍 Traceback: {traceback.format_exc()}")
             raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
+
 
 # Inicializar FastAPI y el predictor
 app = FastAPI(
     title="Exoplanet Prediction API",
     description="API para predecir si un candidato es un exoplaneta basado en sus características físicas",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # Configurar CORS
 origins = [
+    "*",
     "http://localhost:4321",
     "http://127.0.0.1:4321",
     "http://localhost:3000",
@@ -141,18 +151,16 @@ if not predictor.is_ready:
 else:
     print("🚀 API Exoplanet Prediction iniciada correctamente")
 
+
 @app.get("/")
 async def root():
     return {
-        "message": "🌌 Exoplanet Prediction API", 
+        "message": "🌌 Exoplanet Prediction API",
         "status": "active",
         "model_ready": predictor.is_ready,
-        "endpoints": {
-            "docs": "/docs",
-            "health": "/health", 
-            "predict": "/predict"
-        }
+        "endpoints": {"docs": "/docs", "health": "/health", "predict": "/predict"},
     }
+
 
 @app.post("/predict", response_model=PredictionResult)
 async def predict_exoplanet(features: ExoplanetFeatures):
@@ -160,7 +168,7 @@ async def predict_exoplanet(features: ExoplanetFeatures):
     Predice si un candidato es un exoplaneta basado en sus características.
     """
     print(f"📥 Datos recibidos para predicción: {features.dict()}")
-    
+
     try:
         result = predictor.predict(features)
         print(f"✅ Predicción exitosa: {result}")
@@ -169,8 +177,10 @@ async def predict_exoplanet(features: ExoplanetFeatures):
         print(f"❌ Error en predicción: {str(e)}")
         print(f"🔍 Tipo de error: {type(e).__name__}")
         import traceback
+
         print(f"🔍 Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
+
 
 @app.get("/health")
 async def health_check():
@@ -180,8 +190,9 @@ async def health_check():
     return {
         "status": "healthy" if predictor.is_ready else "unhealthy",
         "model_loaded": predictor.is_ready,
-        "timestamp": np.datetime64('now').astype(str)
+        "timestamp": np.datetime64("now").astype(str),
     }
+
 
 @app.get("/model-info")
 async def model_info():
@@ -190,21 +201,18 @@ async def model_info():
     """
     if not predictor.is_ready:
         raise HTTPException(status_code=500, detail="Model not loaded")
-    
+
     model_type = type(predictor.model).__name__
     scaler_type = type(predictor.scaler).__name__
-    
+
     return {
         "model_type": model_type,
         "scaler_type": scaler_type,
         "features_used": ["prad", "period", "teq", "depth"],
-        "model_ready": predictor.is_ready
+        "model_ready": predictor.is_ready,
     }
 
+
 if __name__ == "__main__":
-    uvicorn.run(
-        app, 
-        host="0.0.0.0", 
-        port=8000,
-        log_level="info"
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+
